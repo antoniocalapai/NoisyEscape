@@ -11,6 +11,7 @@ let playerLane;
 let laneIndicator;
 let lanes = [];
 let maxVisibleLanes = 50;
+let isJumping = false;
 
 function init() {
     scene = new THREE.Scene();
@@ -31,7 +32,7 @@ function init() {
     scene.add(player);
 
     camera.position.set(0, 5, 5);
-    camera.lookAt(0, 0, 0);
+    camera.lookAt(0, 0, -10);
 
     playerLane = 0;
     player.position.x = playerLane * laneWidth;
@@ -47,7 +48,7 @@ function createLane(index) {
     let laneMaterial = new THREE.MeshBasicMaterial({ color: laneColor, side: THREE.DoubleSide });
     let lane = new THREE.Mesh(laneGeometry, laneMaterial);
     lane.rotation.x = -Math.PI / 2;
-    lane.position.set(index * laneWidth, 0, -laneLength / 2);
+    lane.position.set(index * laneWidth, -1.5, -laneLength / 2);
     scene.add(lane);
     lanes.push(lane);
 }
@@ -74,35 +75,66 @@ function updateLaneIndicator() {
 }
 
 function handlePlayerMovement(event) {
+    if (isJumping) return;
+
     if (event.key === 'ArrowLeft') {
-        playerLane--;
-        if (playerLane < -5) {
-            resetPlayer();
+        if (playerLane <= -5) {
+            resetPlayerThenJump(-1);
         } else {
+            playerLane--;
             playerJumpToLane(playerLane);
         }
     } else if (event.key === 'ArrowRight') {
-        playerLane++;
-        if (playerLane > 5) {
-            resetPlayer();
+        if (playerLane >= 5) {
+            resetPlayerThenJump(1);
         } else {
+            playerLane++;
             playerJumpToLane(playerLane);
         }
     }
 }
 
 function playerJumpToLane(lane) {
-    player.position.x = lane * laneWidth;
-    camera.position.x = player.position.x;
-    camera.lookAt(player.position.x, 0, -10);
-    updateLaneIndicator();
+    isJumping = true;
+    let targetX = lane * laneWidth;
+    let jumpHeight = 1;
+    let jumpDuration = 300;
+    let startX = player.position.x;
+    let startY = player.position.y;
+    let startTime = performance.now();
+
+    function jump() {
+        let currentTime = performance.now();
+        let elapsedTime = currentTime - startTime;
+        let t = Math.min(elapsedTime / jumpDuration, 1);
+
+        player.position.x = startX + (targetX - startX) * t;
+        player.position.y = startY + jumpHeight * Math.sin(Math.PI * t);
+
+        if (t < 1) {
+            requestAnimationFrame(jump);
+        } else {
+            player.position.y = 0.5;
+            camera.position.x = player.position.x;
+            camera.lookAt(player.position.x, 0, -10);
+            isJumping = false;
+            updateLaneIndicator();
+        }
+    }
+
+    jump();
 }
 
-function resetPlayer() {
-    playerLane = 0;
-    player.position.x = 0;
-    camera.position.x = 0;
-    updateLaneIndicator();
+function resetPlayerThenJump(direction) {
+    setTimeout(() => {
+        player.position.x = 0;
+        camera.position.x = 0;
+        playerLane = 0;
+        updateLaneIndicator();
+        isJumping = false;
+        playerLane += direction;
+        playerJumpToLane(playerLane);
+    }, 50);
 }
 
 function animate() {
